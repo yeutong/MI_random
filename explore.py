@@ -2,11 +2,12 @@
 import torch
 from transformer_lens import HookedTransformer
 from transformer_lens.utils import get_act_name
-
+import torch.nn.functional as F
 
 from functools import partial
 import plotly.express as px
 import numpy as np
+from datasets import load_dataset
 
 torch.set_grad_enabled(False)
 
@@ -65,4 +66,53 @@ print(saes.keys())
 # %%
 sae = saes[hook_name]
 # %%
+# %%
+sae.W_dec.shape
+# %%
+# reconstruct activation, and compared with the real one
+real_act = cache[hook_name].cpu()  # shape d_model
+# %%
+sae_in = real_act - (sae.b_dec * sae.cfg.apply_b_dec_to_input)
+hidden_pre = (sae_in @ sae.W_enc) + sae.b_enc
+feature_act = F.relu(hidden_pre)
+sae_out = (feature_act @ sae.W_dec) + sae.b_dec
+sae_out
+
+# %%
+for i, _ in sae.named_parameters():
+    print(i)
+# %%
+feature_act_real, hidden_pre_real = sae._encode_with_hidden_pre(real_act)
+# %%
+sae_out_real = sae.decode(feature_act_real)
+# %%
+# calc reconstruction error
+recon_error = F.mse_loss(sae_out_real, real_act)
+print(recon_error)
+
+recon_error = F.mse_loss(sae_out, real_act)
+print(recon_error)
+
+
+# %%
+
+sae_out, feature_acts, loss, mse_loss, l1_loss, ghost_grad_loss = sae(real_act)
+# %%
+sae_out.shape
+# %%
+feature_acts.shape
+# %%
+loss.shape
+# %%
+mse_loss.shape
+# %%
+l1_loss.shape
+# %%
+# load dataset from huggingface
+from transformers import AutoTokenizer
+
+tokenizer = AutoTokenizer.from_pretrained("gpt2-small")
+dataset = load_dataset("stas/openwebtext-10k")
+# %%
+model.generate("你好")
 # %%
